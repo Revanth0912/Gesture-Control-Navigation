@@ -47,7 +47,7 @@ while True:
                     cv2.circle(image,(x,y),5,(255,0,0))
         dist = y1- y2
         print(dist)
-        if(dist<25):
+        if(dist<24.9):
             if x2<x1:
                 pyautogui.press('left')
             else:
@@ -64,5 +64,4 @@ while True:
 camera.release()
 cv2.destroyAllWindows()
 
-
-##
+#hello 
