@@ -7,7 +7,6 @@ drawing_option = mediapipe.solutions.drawing_utils
 screen_width, screen_height = pyautogui.size()
 camera = cv2.VideoCapture(0)
 x1 = y1 = x2 = y2 =0
-sensitivity = 2
 while True:
     _,image = camera.read()
     image_height, image_width, _ = image.shape
@@ -23,29 +22,27 @@ while True:
                 x = int(lm.x * image_width)
                 y = int(lm.y * image_height)
                 #print(x,y)
-                if id == 9 :
-                    mouse_x = int(screen_width / image_width * x) * 1.65   
-                    mouse_y = int(screen_height / image_height * y) * 1.67            
+                if id == 8:
+                    mouse_x = int(screen_width / image_width * x) * 1.5     
+                    mouse_y = int(screen_height / image_height * y) *1.5                
                     cv2.circle(image,(x,y),5,(255,0,0))
-                    pyautogui.moveTo(mouse_x,mouse_y)
+                    #pyautogui.moveTo(mouse_x,mouse_y)
                     x1 = x
                     y1 = y
-                if id == 12:
+                if id == 4:
                     x2= x
                     y2 = y
                     cv2.circle(image,(x,y),5,(255,0,0))
-        dist = y1- y2
+        dist = y2 - y1
         print(dist)
-        if(dist<-13):
-             #if x2 < x1:  # Left hand (thumb to the left of index finger)
-                pyautogui.rightClick()
-             #else:  # Right hand (thumb to the right of index finger)
-                #pyautogui.click()
+        if(dist<15):
+             if x2 < x1:  # Left hand (thumb to the left of index finger)
+                pyautogui.press('left')
+             else:  # Right hand (thumb to the right of index finger)
+                pyautogui.press('right')
     cv2.imshow("Hand movement video capture",image)
-    key = cv2.waitKey(1)
+    key = cv2.waitKey(100)
     if key == 27:
         break
 camera.release()
 cv2.destroyAllWindows()
-
-#hello 
