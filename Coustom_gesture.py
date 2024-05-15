@@ -3,6 +3,7 @@ import mediapipe as mp
 import pyautogui
 import time
 import subprocess
+import psutil
 
 # Disable pyautogui fail safe
 pyautogui.FAILSAFE = False
@@ -66,6 +67,9 @@ def fingers_up(hand_landmarks):#defines the oreintation of hand
     
     return fingers
 
+# Flag to track if Notepad is already open
+notepad_opened = False
+
 # Initialize the Hands solution
 with mp_hands.Hands(
     static_image_mode=False,
@@ -117,10 +121,16 @@ with mp_hands.Hands(
                     mouse_x = int(screen_width / image_width * x) * sensitivity
                     mouse_y = int(screen_height / image_height * y) * sensitivity
                     pyautogui.moveTo(mouse_x, mouse_y)
-                #costum gesture to trigger notepad    
-                elif finger_states[1]==1 and finger_states[1] == 1 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 1 and hand_orientation=='right':
-                            subprocess.Popen(["notepad.exe"])
-                            
+                #costum gesture to trigger instagram(spider-man pose)   
+                elif finger_states[0]==1 and finger_states[1] == 1 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 1 and hand_orientation=='right':
+                        if not notepad_opened:  # Check if Notepad is not already open
+                            subprocess.Popen(["C:\Program Files\Google\Chrome\Application\chrome.exe","instagram.com"])
+                            notepad_opened = True  # Set the flag to indicate that Notepad is open
+                #notepad gesture
+                elif finger_states[0]==1 and finger_states[1] == 0 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 0 and hand_orientation=='right':
+                        if not notepad_opened:  # Check if Notepad is not already open
+                            subprocess.Popen(["notepad"])
+                            notepad_opened = True  # Set the flag to indicate that Notepad is open            
                 else:
                     #clicking operation
                     if finger_states[1]==0:    #index finger is clicking position
@@ -136,6 +146,10 @@ with mp_hands.Hands(
         key = cv2.waitKey(1)
         if key == 27:  # ESC key to break
             break
+
+        # Check if Notepad window is closed
+        if notepad_opened and not any("notepad.exe" in p.name() for p in psutil.process_iter()):
+            notepad_opened = False  # Reset the flag if Notepad is closed
 
 # Release the camera and close all OpenCV windows
 camera.release()
