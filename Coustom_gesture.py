@@ -74,7 +74,7 @@ notepad_opened = False
 with mp_hands.Hands(
     static_image_mode=False,
     max_num_hands=2,
-    min_detection_confidence=0.5,
+    min_detection_confidence=0.9,
     min_tracking_confidence=0.5) as hands:
 
     pTime = time.time()
