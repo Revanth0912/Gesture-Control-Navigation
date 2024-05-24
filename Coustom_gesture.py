@@ -4,6 +4,7 @@ import pyautogui
 import time
 import subprocess
 import psutil
+import pygetwindow as gw
 
 # Disable pyautogui fail safe
 pyautogui.FAILSAFE = False
@@ -16,59 +17,44 @@ mp_drawing = mp.solutions.drawing_utils
 camera = cv2.VideoCapture(0)
 screen_width, screen_height = pyautogui.size()
 
-hand_orientation = 'right' #setting default hand orientation is right(it will be modified in the 1st iteration)
+# Function to check for left or right hand
+def get_hand_orientation(hand_landmarks):
+    return 'right' if hand_landmarks.landmark[17].x > hand_landmarks.landmark[5].x else 'left'
 
 # Function to check which fingers are up
-def fingers_up(hand_landmarks):#defines the oreintation of hand
+def fingers_up(hand_landmarks, hand_orientation):
     fingers = []
     
-    # Check for left or right hand
-    global hand_orientation
-    if hand_landmarks.landmark[17].x > hand_landmarks.landmark[5].x:
-        hand_orientation = 'right' # for right hand
-    else:
-        hand_orientation = 'left' # for left hand
-
     # Thumb: Check if the thumb tip is to the left (right hand) or right (left hand) of the thumb knuckle
     if hand_orientation == 'right':
-        if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x: 
-            fingers.append(1)
-        else:
-            fingers.append(0)
+        fingers.append(1 if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x else 0)
     else:
-        if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x: 
-            fingers.append(0)
-        else:
-            fingers.append(1)
+        fingers.append(0 if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x else 1)
 
     # Index Finger: Check if the tip is above the PIP joint
-    if hand_landmarks.landmark[8].y < hand_landmarks.landmark[6].y:
-        fingers.append(1)
-    else:
-        fingers.append(0)
-    
+    fingers.append(1 if hand_landmarks.landmark[8].y < hand_landmarks.landmark[6].y else 0)
     # Middle Finger: Check if the tip is above the PIP joint
-    if hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y:
-        fingers.append(1)
-    else:
-        fingers.append(0)
-    
+    fingers.append(1 if hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y else 0)
     # Ring Finger: Check if the tip is above the PIP joint
-    if hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y:
-        fingers.append(1)
-    else:
-        fingers.append(0)
-    
+    fingers.append(1 if hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y else 0)
     # Pinky Finger: Check if the tip is above the PIP joint
-    if hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y:
-        fingers.append(1)
-    else:
-        fingers.append(0)
-    
+    fingers.append(1 if hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y else 0)
+
     return fingers
 
-# Flag to track if Notepad is already open
-notepad_opened = False
+def is_process_running(process_name):
+    for proc in psutil.process_iter(['name']):
+        if proc.info['name'] == process_name:
+            return True
+    return False
+
+def bring_notepad_to_front():
+    notepad_windows = gw.getWindowsWithTitle("Untitled - Notepad")
+    if notepad_windows:
+        notepad_window = notepad_windows[0]
+        if notepad_window.isMinimized:
+            notepad_window.restore()
+        notepad_window.activate()
 
 # Initialize the Hands solution
 with mp_hands.Hands(
@@ -82,6 +68,12 @@ with mp_hands.Hands(
     fps_update_interval = 1  # update every second
     fps_last_update = time.time()
     sensitivity = 1.5  # Adjusted sensitivity for cursor movement
+
+    # Debounce mechanism
+    debounce_interval = 2  # 2 seconds debounce interval
+    last_notepad_open_time = 0
+
+    instagram_opened = False
 
     while True:
         success, image = camera.read()
@@ -111,35 +103,37 @@ with mp_hands.Hands(
         if all_hands:
             for hand_landmarks in all_hands:
                 mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-                finger_states = fingers_up(hand_landmarks)
-                #print(f'Finger states: {finger_states}')  # Print the array indicating which fingers are up
+                hand_orientation = get_hand_orientation(hand_landmarks)
+                finger_states = fingers_up(hand_landmarks, hand_orientation)
 
                 # Move the cursor if only index finger is up 
-                if finger_states[0] == 0 and finger_states[1] == 1 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 0:
+                if finger_states == [0, 1, 0, 0, 0]:
                     x = int(hand_landmarks.landmark[8].x * image_width)
                     y = int(hand_landmarks.landmark[8].y * image_height)
-                    mouse_x = int(screen_width / image_width * x) * sensitivity
-                    mouse_y = int(screen_height / image_height * y) * sensitivity
+                    mouse_x = int(screen_width / image_width * x * sensitivity)
+                    mouse_y = int(screen_height / image_height * y * sensitivity)
                     pyautogui.moveTo(mouse_x, mouse_y)
-                #costum gesture to trigger instagram(spider-man pose)   
-                elif finger_states[0]==1 and finger_states[1] == 1 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 1 and hand_orientation=='right':
-                        if not notepad_opened:  # Check if Notepad is not already open
-                            subprocess.Popen(["C:\Program Files\Google\Chrome\Application\chrome.exe","instagram.com"])
-                            notepad_opened = True  # Set the flag to indicate that Notepad is open
-                #notepad gesture
-                elif finger_states[0]==1 and finger_states[1] == 0 and finger_states[2] == 0 and finger_states[3] == 0 and finger_states[4] == 0 and hand_orientation=='right':
-                        if not notepad_opened:  # Check if Notepad is not already open
-                            subprocess.Popen(["notepad"])
-                            notepad_opened = True  # Set the flag to indicate that Notepad is open            
-                else:
-                    #clicking operation
-                    if finger_states[1]==0:    #index finger is clicking position
-                        distance = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y #distance between index finger and thumb finger
-                        #print(distance)
-                        if distance < 0.02 : #0.01 is verified limiting distance for the click
-                            pyautogui.click()
-                        
 
+                # Custom gesture to trigger Instagram (spider-man pose)
+                elif finger_states == [1, 1, 0, 0, 1] and hand_orientation == 'right':
+                    if not instagram_opened:
+                        subprocess.Popen(["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "instagram.com"])
+                        instagram_opened = True
+
+                # Notepad gesture
+                elif finger_states == [0, 1, 1, 1, 1] and hand_orientation == 'right':
+                    if (cTime - last_notepad_open_time) > debounce_interval:
+                        if not is_process_running("notepad.exe"):
+                            subprocess.Popen(["notepad"])
+                        else:
+                            bring_notepad_to_front()
+                        last_notepad_open_time = cTime
+
+                # Clicking operation
+                elif finger_states[1] == 0:  # Index finger is in clicking position
+                    distance = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y  # Distance between index finger and thumb
+                    if distance < 0.02:  # 0.01 is verified limiting distance for the click
+                        pyautogui.click()
 
         # Display the resulting image
         cv2.imshow("Hand movement video capture", image)
@@ -147,9 +141,9 @@ with mp_hands.Hands(
         if key == 27:  # ESC key to break
             break
 
-        # Check if Notepad window is closed
-        if notepad_opened and not any("notepad.exe" in p.name() for p in psutil.process_iter()):
-            notepad_opened = False  # Reset the flag if Notepad is closed
+        # Check if Instagram is closed (by checking if the Chrome process is closed)
+        if instagram_opened and not any("chrome.exe" in p.name() for p in psutil.process_iter()):
+            instagram_opened = False  # Reset the flag if Instagram is closed
 
 # Release the camera and close all OpenCV windows
 camera.release()
