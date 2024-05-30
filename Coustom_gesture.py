@@ -5,6 +5,37 @@ import time
 import subprocess
 import psutil
 import pygetwindow as gw
+import json
+import threading
+
+# Define gesture_applications globally
+gesture_applications = {}
+
+# Define a flag to control the loop
+config_updated = False
+
+# Function to periodically check for updates in gesture configuration
+def check_gesture_config():
+    global gesture_applications, config_updated  # Declare gesture_applications and config_updated as global
+    while True:
+        # Read the updated gesture configuration from the file
+        with open("gesture_config.json", "r") as f:
+            updated_config = json.load(f)
+        
+        # Check if the updated configuration is different from the current one
+        if updated_config != gesture_applications:
+            # If yes, update the gesture_applications variable
+            gesture_applications = updated_config
+            print("Gesture configuration updated:", gesture_applications)
+            config_updated = True  # Set the flag to True
+            break  # Exit the loop
+
+# Start the gesture configuration update thread
+threading.Thread(target=check_gesture_config).start()
+
+# Wait for the configuration update to finish
+while not config_updated:
+    time.sleep(0.1)  # Sleep for a short duration to avoid busy waiting
 
 # Disable pyautogui fail safe
 pyautogui.FAILSAFE = False
@@ -24,7 +55,7 @@ def get_hand_orientation(hand_landmarks):
 # Function to check which fingers are up
 def fingers_up(hand_landmarks, hand_orientation):
     fingers = []
-    
+
     # Thumb: Check if the thumb tip is to the left (right hand) or right (left hand) of the thumb knuckle
     if hand_orientation == 'right':
         fingers.append(1 if hand_landmarks.landmark[4].x < hand_landmarks.landmark[3].x else 0)
@@ -80,18 +111,18 @@ with mp_hands.Hands(
         if not success:
             print("Ignoring empty camera frame.")
             continue
-
+        
         # Flip the image horizontally for a later selfie-view display
         image = cv2.flip(image, 1)
         image_height, image_width, _ = image.shape
-
+    
         # Convert the BGR image to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
+    
         # Process the image and find hands
         output_hands = hands.process(rgb_image)
         all_hands = output_hands.multi_hand_landmarks
-
+    
         # Calculate and display frame rate
         cTime = time.time()
         if cTime - fps_last_update > fps_update_interval:
@@ -99,13 +130,13 @@ with mp_hands.Hands(
             fps_last_update = cTime
         pTime = cTime
         cv2.putText(image, f'FPS: {int(fps)}', (10, 70), cv2.FONT_HERSHEY_PLAIN, 3, (255, 0, 0), 3)
-
+    
         if all_hands:
             for hand_landmarks in all_hands:
                 mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 hand_orientation = get_hand_orientation(hand_landmarks)
                 finger_states = fingers_up(hand_landmarks, hand_orientation)
-
+    
                 # Move the cursor if only index finger is up 
                 if finger_states == [0, 1, 0, 0, 0]:
                     x = int(hand_landmarks.landmark[8].x * image_width)
@@ -113,34 +144,35 @@ with mp_hands.Hands(
                     mouse_x = int(screen_width / image_width * x * sensitivity)
                     mouse_y = int(screen_height / image_height * y * sensitivity)
                     pyautogui.moveTo(mouse_x, mouse_y)
-
+    
                 # Custom gesture to trigger Instagram (spider-man pose)
                 elif finger_states == [1, 1, 0, 0, 1] and hand_orientation == 'right':
                     if not instagram_opened:
-                        subprocess.Popen(["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "instagram.com"])
+                        subprocess.Popen([gesture_applications['Open Instagram'], "instagram.com"])
                         instagram_opened = True
-
+    
                 # Notepad gesture
                 elif finger_states == [0, 1, 1, 1, 1] and hand_orientation == 'right':
                     if (cTime - last_notepad_open_time) > debounce_interval:
-                        if not is_process_running("notepad.exe"):
-                            subprocess.Popen(["notepad"])
+                        if not is_process_running(gesture_applications['Open Notepad']):
+                            subprocess.Popen([gesture_applications['Open Notepad']])
                         else:
                             bring_notepad_to_front()
                         last_notepad_open_time = cTime
-
+    
                 # Clicking operation
                 elif finger_states[1] == 0:  # Index finger is in clicking position
                     distance = hand_landmarks.landmark[4].y - hand_landmarks.landmark[8].y  # Distance between index finger and thumb
                     if distance < 0.02:  # 0.01 is verified limiting distance for the click
                         pyautogui.click()
-
+    
         # Display the resulting image
         cv2.imshow("Hand movement video capture", image)
+        
         key = cv2.waitKey(1)
         if key == 27:  # ESC key to break
             break
-
+        
         # Check if Instagram is closed (by checking if the Chrome process is closed)
         if instagram_opened and not any("chrome.exe" in p.name() for p in psutil.process_iter()):
             instagram_opened = False  # Reset the flag if Instagram is closed
