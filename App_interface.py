@@ -12,7 +12,7 @@ from PIL import Image, ImageTk
 # Function to start the gesture recognition script
 def start_script():
     global process
-    file_path = r"C:/project/Coustom_gesture.py"  # Replace with the actual path to your script
+    file_path = r"C:/project/Custom_gesture.py"  # Replace with the actual path to your script
     if os.path.exists(file_path):
         try:
             process = subprocess.Popen([sys.executable, file_path], shell=True)
